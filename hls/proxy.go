@@ -1,0 +1,69 @@
+package hls
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"net/http"
+	"strconv"
+
+	"github.com/josepmdc/slipstream/config"
+	"github.com/josepmdc/slipstream/lib/acestream"
+)
+
+type AceStreamClient interface {
+	FetchManifest(ctx context.Context, aceID string) ([]byte, error)
+	FetchSegment(ctx context.Context, segment string) ([]byte, error)
+}
+
+type Proxy struct {
+	acestreamClient  AceStreamClient
+	acestreamBaseURL string
+	publicBaseURL    string
+}
+
+func NewProxy(cfg config.Config, acestreamClient AceStreamClient) *Proxy {
+	return &Proxy{
+		acestreamClient:  acestreamClient,
+		acestreamBaseURL: cfg.AceStreamBaseURL,
+		publicBaseURL:    cfg.PublicBaseURL,
+	}
+}
+
+func (proxy *Proxy) ServeManifest(w http.ResponseWriter, r *http.Request) {
+	aceID := r.URL.Query().Get("id")
+
+	if !acestream.IsValidAceID(aceID) {
+		http.Error(w, "invalid acestream ID", http.StatusBadRequest)
+		return
+	}
+
+	manifest, err := proxy.acestreamClient.FetchManifest(r.Context(), aceID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to fetch manifest: %s", err), http.StatusInternalServerError)
+		return
+	}
+
+	rewritten := proxy.RewriteManifest(manifest)
+
+	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+	w.Write(rewritten)
+}
+
+func (proxy *Proxy) RewriteManifest(raw []byte) []byte {
+	return bytes.ReplaceAll(raw, []byte(proxy.acestreamBaseURL), []byte(proxy.publicBaseURL))
+}
+
+func (proxy *Proxy) ServeSegment(w http.ResponseWriter, r *http.Request) {
+	data, err := proxy.acestreamClient.FetchSegment(r.Context(), r.URL.Path)
+	if err != nil {
+		http.Error(w, "upstream error", http.StatusBadGateway)
+		return
+	}
+
+	w.Header().Set("Content-Type", "video/mp2t")
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.Header().Set("Cache-Control", "max-age=300")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Write(data)
+}

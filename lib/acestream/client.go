@@ -16,20 +16,22 @@ import (
 )
 
 type Client struct {
-	streamInfoURL string
-	httpClient    *http.Client
+	streamInfoURL    string
+	acestreamBaseURL string
+	httpClient       *http.Client
 }
 
 func NewClient(cfg *config.Config) *Client {
 	return &Client{
 		streamInfoURL: must.Do(
-			url.JoinPath(cfg.AcestreamBaseURL, cfg.AcestreamEndpoint),
+			url.JoinPath(cfg.AceStreamBaseURL, cfg.AceStreamEndpoint),
 		),
-		httpClient: &http.Client{Timeout: cfg.AcestreamTimeout},
+		acestreamBaseURL: cfg.AceStreamBaseURL,
+		httpClient:       &http.Client{Timeout: cfg.AceStreamTimeout},
 	}
 }
 
-func (client *Client) FetchPlaylist(ctx context.Context, aceID string) ([]byte, error) {
+func (client *Client) FetchManifest(ctx context.Context, aceID string) ([]byte, error) {
 	streamInfo, err := client.FetchStreamInfo(ctx, aceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch stream info: %w", err)
@@ -43,7 +45,7 @@ func (client *Client) FetchPlaylist(ctx context.Context, aceID string) ([]byte, 
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read playlist body: %w", err)
+		return nil, fmt.Errorf("failed to read manifest's body: %w", err)
 	}
 
 	return body, nil
@@ -98,4 +100,27 @@ func (client *Client) FetchStreamInfo(ctx context.Context, aceID string) (*Strea
 	slog.Debug("successfully recieved acestream response", "response", envelope.Response)
 
 	return &envelope.Response, nil
+}
+
+func (client *Client) FetchSegment(ctx context.Context, segment string) ([]byte, error) {
+	segmentURL, err := url.JoinPath(client.acestreamBaseURL, segment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to form full acestream segment URL: %w", err)
+	}
+
+	resp, err := client.httpClient.Get(segmentURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	switch body, err := io.ReadAll(resp.Body); {
+	case err != nil:
+		return nil, fmt.Errorf("failed to read segment body: %w", err)
+	case resp.StatusCode != http.StatusOK:
+		slog.Error("acestream replied with a non-OK status code", "response", string(body))
+		return nil, fmt.Errorf("acestream replied with a non-OK status code: %d", resp.StatusCode)
+	default:
+		return body, nil
+	}
 }

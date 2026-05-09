@@ -8,9 +8,9 @@ import (
 )
 
 type Config struct {
-	AcestreamTimeout  time.Duration `env:"ACESTREAM_TIMEOUT"  envDefault:"30s"`
-	AcestreamBaseURL  string        `env:"ACESTREAM_BASE_URL" envDefault:"http://127.0.0.1:6878"`
-	AcestreamEndpoint string        `env:"ACESTREAM_ENDPOINT" envDefault:"/ace/manifest.m3u8"`
+	AceStreamTimeout  time.Duration `env:"ACESTREAM_TIMEOUT"  envDefault:"30s"`
+	AceStreamBaseURL  string        `env:"ACESTREAM_BASE_URL" envDefault:"http://127.0.0.1:6878"`
+	AceStreamEndpoint string        `env:"ACESTREAM_ENDPOINT" envDefault:"/ace/manifest.m3u8"`
 	Host              string        `env:"HOST"               envDefault:"localhost"`
 	Port              int           `env:"PORT"               envDefault:"8080"`
 	PublicBaseURL     string        `env:"PUBLIC_BASE_URL"    envDefault:"http://localhost:8080"`
