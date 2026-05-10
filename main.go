@@ -11,6 +11,7 @@ import (
 	"github.com/josepmdc/slipstream/api/middleware"
 	"github.com/josepmdc/slipstream/config"
 	"github.com/josepmdc/slipstream/hls"
+	"github.com/josepmdc/slipstream/hls/cache"
 	"github.com/josepmdc/slipstream/lib/acestream"
 	"github.com/josepmdc/slipstream/lib/must"
 )
@@ -20,7 +21,9 @@ func main() {
 
 	acestreamClient := acestream.NewClient(cfg)
 
-	hls := hls.NewProxy(*cfg, acestreamClient)
+	segmentCache := cache.NewInMemorySegmentCache(cfg)
+
+	hls := hls.NewProxy(cfg, acestreamClient, segmentCache)
 
 	router := api.NewRouter()
 
@@ -30,8 +33,8 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.Write(must.Do(json.Marshal(`{"status": "ok"}`)))
 	})
-	router.HandleFunc("/ace/manifest.m3u8", hls.ServeManifest)
-	router.HandleFunc("/ace/c/{infohash}/{segment}", hls.ServeSegment)
+	router.HandleFunc("GET /ace/manifest.m3u8", hls.ServeManifest)
+	router.HandleFunc("GET /ace/c/{infohash}/{segment}", hls.ServeSegment)
 
 	address := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 

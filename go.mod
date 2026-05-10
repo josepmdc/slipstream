@@ -5,6 +5,7 @@ go 1.26.2
 require (
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/google/uuid v1.6.0
+	github.com/maypok86/otter/v2 v2.3.0
 	github.com/stretchr/testify v1.11.1
 )
 
