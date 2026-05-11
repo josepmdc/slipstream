@@ -22,14 +22,15 @@ func main() {
 	acestreamClient := acestream.NewClient(cfg)
 
 	segmentCache := cache.NewInMemorySegmentCache(cfg)
+	manifestCache := cache.NewInMemoryManifestCache(cfg)
 
-	hls := hls.NewProxy(cfg, acestreamClient, segmentCache)
+	hls := hls.NewProxy(cfg, acestreamClient, segmentCache, manifestCache)
 
 	router := api.NewRouter()
 
 	router.Use(middleware.Logging)
 
-	router.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("GET /check", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write(must.Do(json.Marshal(`{"status": "ok"}`)))
 	})

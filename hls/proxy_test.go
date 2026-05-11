@@ -31,13 +31,15 @@ func (m *mockAceStreamClient) FetchSegment(_ context.Context, _ string) ([]byte,
 
 func newProxy(client hls.AceStreamClient) *hls.Proxy {
 	cfg := &config.Config{
-		AceStreamBaseURL:       "http://localhost:6878",
-		PublicBaseURL:          "http://localhost:8080",
-		SegmentCacheMaxSize:    100,
-		SegmentCacheExpiration: 5 * time.Minute,
+		AceStreamBaseURL:        "http://localhost:6878",
+		PublicBaseURL:           "http://localhost:8080",
+		SegmentCacheMaxSize:     100,
+		SegmentCacheExpiration:  5 * time.Minute,
+		ManifestCacheMaxSize:    100,
+		ManifestCacheExpiration: 5 * time.Minute,
 	}
 
-	return hls.NewProxy(cfg, client, cache.NewInMemorySegmentCache(cfg))
+	return hls.NewProxy(cfg, client, cache.NewInMemorySegmentCache(cfg), cache.NewInMemoryManifestCache(cfg))
 }
 
 const validAceID = "abc123def456abc123def456abc123def456abc1"
@@ -75,6 +77,25 @@ func TestServeManifest(t *testing.T) {
 		assert.Equal(t, "application/vnd.apple.mpegurl", w.Header().Get("Content-Type"))
 		assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
 		assert.Equal(t, "#EXTM3U\nhttp://localhost:8080/seg.ts\n", w.Body.String())
+	})
+
+	t.Run("on cache hit, returns data without calling upstream", func(t *testing.T) {
+		raw := []byte("original data that gets loaded into cache")
+		upstream := &mockAceStreamClient{manifest: raw}
+		proxy := newProxy(upstream)
+
+		// first call, manifest is loaded into cache
+		r := httptest.NewRequest(http.MethodGet, "/hls/manifest.m3u8?id="+validAceID, nil)
+		proxy.ServeManifest(httptest.NewRecorder(), r)
+
+		// we set another value just to make sure it's coming from cache and not from upstream
+		upstream.manifest = []byte("another string to make sure this is not returned")
+
+		w := httptest.NewRecorder()
+		proxy.ServeManifest(w, r)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, []byte("original data that gets loaded into cache"), w.Body.Bytes())
 	})
 
 	t.Run("given no ace ID, returns 400", func(t *testing.T) {

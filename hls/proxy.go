@@ -20,19 +20,25 @@ type SegmentCache interface {
 	Get(ctx context.Context, url string, loader cache.SegmentLoaderFunc) ([]byte, error)
 }
 
+type ManifestCache interface {
+	Get(ctx context.Context, aceID string, loader cache.ManifestLoaderFunc) ([]byte, error)
+}
+
 type Proxy struct {
 	acestreamClient  AceStreamClient
 	acestreamBaseURL string
 	publicBaseURL    string
 	segmentCache     SegmentCache
+	manifestCache    ManifestCache
 }
 
-func NewProxy(cfg *config.Config, acestreamClient AceStreamClient, segmentCache SegmentCache) *Proxy {
+func NewProxy(cfg *config.Config, acestreamClient AceStreamClient, segmentCache SegmentCache, manifestCache ManifestCache) *Proxy {
 	return &Proxy{
 		acestreamClient:  acestreamClient,
 		acestreamBaseURL: cfg.AceStreamBaseURL,
 		publicBaseURL:    cfg.PublicBaseURL,
 		segmentCache:     segmentCache,
+		manifestCache:    manifestCache,
 	}
 }
 
@@ -44,7 +50,7 @@ func (proxy *Proxy) ServeManifest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	manifest, err := proxy.acestreamClient.FetchManifest(r.Context(), aceID)
+	manifest, err := proxy.manifestCache.Get(r.Context(), aceID, proxy.acestreamClient.FetchManifest)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to fetch manifest: %s", err), http.StatusInternalServerError)
 		return
